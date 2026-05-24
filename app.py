@@ -833,88 +833,65 @@ webrtc_credentials = {}
 
 @app.get("/api/voice/token")
 def get_voice_token(request: Request):
-    """Generate a dynamic Twilio Voice WebRTC Access Token, programmatically setting up the TwiML App if needed."""
-    account_sid = os.getenv("TWILIO_ACCOUNT_SID")
-    auth_token = os.getenv("TWILIO_AUTH_TOKEN")
-    
+    """Generate a Twilio Voice WebRTC Access Token using env-var credentials."""
+    account_sid   = os.getenv("TWILIO_ACCOUNT_SID")
+    auth_token    = os.getenv("TWILIO_AUTH_TOKEN")
+    api_key       = os.getenv("TWILIO_API_KEY")
+    api_secret    = os.getenv("TWILIO_API_SECRET")
+    twiml_app_sid = os.getenv("TWILIO_TWIML_APP_SID")
+
     if not account_sid or not auth_token:
-        return JSONResponse(status_code=500, content={"error": "Missing Twilio credentials in environment"})
-        
+        return JSONResponse(status_code=500, content={"error": "Missing TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN"})
+
     try:
-        from twilio.rest import Client as TwilioRestClient
         from twilio.jwt.access_token import AccessToken
         from twilio.jwt.access_token.grants import VoiceGrant
-        
-        client = TwilioRestClient(account_sid, auth_token)
-        
-        # 1. Dynamically retrieve or create API Keys for WebRTC signing
-        global webrtc_credentials
-        if "api_key" not in webrtc_credentials:
-            print("🔑 Creating new programmatically managed Twilio WebRTC signing keys...")
-            new_key = client.new_keys.create(friendly_name="KrishiMitraWebRTC")
-            webrtc_credentials["api_key"] = new_key.sid
-            webrtc_credentials["api_secret"] = new_key.secret
-            
-        # 2. Dynamically set up/update the TwiML Application pointing to the active host
-        # Determine proper host for TwiML URL – use PUBLIC_HOST if set (e.g., ngrok), otherwise fallback to request host
-        public_host = os.getenv("PUBLIC_HOST")
-        if public_host:
-            # strip scheme if present and trailing slash
-            public_host = public_host.replace("http://", "").replace("https://", "").rstrip('/')
-            voice_url = f"https://{public_host}/voice/incoming"
-            host_key = public_host
-        else:
-            host = request.headers.get("host")
-            if "localhost" in host or "127.0.0.1" in host:
-                return JSONResponse(status_code=500, content={"error": "PUBLIC_HOST env var required for local testing"})
-            voice_url = f"https://{host}/voice/incoming"
-            host_key = host
-        
-        if "app_sid" not in webrtc_credentials or webrtc_credentials.get("host") != host_key:
-            print(f"📱 Creating/Updating Twilio TwiML App with endpoint: {voice_url}")
-            apps = client.applications.list()
-            app_sid = None
-            for app in apps:
-                if app.friendly_name == "KrishiMitraVoiceApp":
-                    client.applications(app.sid).update(voice_url=voice_url)
-                    app_sid = app.sid
-                    break
-            if not app_sid:
-                new_app = client.applications.create(
+        from twilio.rest import Client as TwilioRestClient
+
+        # If API key not set in env, create one dynamically (first-run only)
+        if not api_key or not api_secret:
+            print("⚠️ TWILIO_API_KEY/SECRET not set — creating a new key (set these as env vars to avoid repeating this)")
+            tw = TwilioRestClient(account_sid, auth_token)
+            new_key = tw.new_keys.create(friendly_name="KrishiMitraWebRTC")
+            api_key    = new_key.sid
+            api_secret = new_key.secret
+            print(f"🔑 Created API Key: {api_key}  — add TWILIO_API_KEY and TWILIO_API_SECRET to your env vars!")
+
+        # If TwiML App SID not set, create/find it
+        if not twiml_app_sid:
+            public_host = os.getenv("PUBLIC_HOST") or request.headers.get("host", "")
+            public_host = public_host.replace("http://", "").replace("https://", "").rstrip("/")
+            voice_url   = f"https://{public_host}/voice/incoming"
+            print(f"⚠️ TWILIO_TWIML_APP_SID not set — looking up or creating TwiML App → {voice_url}")
+            tw = TwilioRestClient(account_sid, auth_token)
+            apps = tw.applications.list(friendly_name="KrishiMitraVoiceApp")
+            if apps:
+                twiml_app_sid = apps[0].sid
+                tw.applications(twiml_app_sid).update(voice_url=voice_url)
+            else:
+                new_app = tw.applications.create(
                     friendly_name="KrishiMitraVoiceApp",
                     voice_url=voice_url,
                     voice_method="POST"
                 )
-                app_sid = new_app.sid
-            
-            webrtc_credentials["app_sid"] = app_sid
-            webrtc_credentials["host"] = host_key
-            
-        # 3. Create the JWT Access Token with Voice Grant
-        token = AccessToken(
-            account_sid,
-            webrtc_credentials["api_key"],
-            webrtc_credentials["api_secret"],
-            identity="farmer_browser"
-        )
-        
-        voice_grant = VoiceGrant(
-            outgoing_application_sid=webrtc_credentials["app_sid"],
-            incoming_allow=True
-        )
+                twiml_app_sid = new_app.sid
+            print(f"📱 TwiML App SID: {twiml_app_sid} — add TWILIO_TWIML_APP_SID to your env vars!")
+
+        # Build the JWT Access Token
+        token = AccessToken(account_sid, api_key, api_secret, identity="farmer_browser")
+        voice_grant = VoiceGrant(outgoing_application_sid=twiml_app_sid, incoming_allow=True)
         token.add_grant(voice_grant)
-        # Ensure the JWT is a string for JSON serialization
+
         token_jwt = token.to_jwt()
         if isinstance(token_jwt, bytes):
             token_jwt = token_jwt.decode()
-        return {
-            "token": token_jwt,
-            "identity": "farmer_browser",
-            "twiml_app_sid": webrtc_credentials["app_sid"]
-        }
+
+        return {"token": token_jwt, "identity": "farmer_browser", "twiml_app_sid": twiml_app_sid}
+
     except Exception as e:
         print(f"❌ Failed to generate Voice Access Token: {e}")
         return JSONResponse(status_code=500, content={"error": f"Token generation failed: {e}"})
+
 
 @app.api_route("/voice/fallback", methods=["GET", "POST"])
 def voice_fallback(request: Request, text: str):
