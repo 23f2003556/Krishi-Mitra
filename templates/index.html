@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>कृषि मित्र — Krishi Mitra</title>
-    <!-- Twilio Voice JS SDK from CDN -->
-    <script src="https://sdk.twilio.com/js/client/v1.14/twilio.min.js"></script>
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -113,23 +111,18 @@
             outline: none;
         }
 
-        #webrtc-call-btn {
+        #callback-btn {
             border-color: var(--accent);
             background: rgba(199,120,43,0.06);
             color: var(--ink);
         }
-        #webrtc-call-btn:hover {
+        #callback-btn:hover {
             background: rgba(199,120,43,0.12);
             transform: translateY(-1px);
         }
-
-        #webrtc-hangup-btn {
-            border-color: var(--rust);
-            color: var(--rust);
-            display: none;
-        }
-        #webrtc-hangup-btn:hover {
-            background: rgba(168,85,60,0.08);
+        #callback-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
 
         .status-container {
@@ -161,12 +154,11 @@
         <span class="ornament ornament-tl">📞</span>
         <span class="ornament ornament-tr">📞</span>
 
-        <div class="card-header">Direct WebRTC Phone Line · मुफ्त फ़ोन कॉल</div>
+        <div class="card-header">Phone Callback · आपके फ़ोन पर कॉल</div>
         <h1 class="card-title">कृषि मित्र</h1>
         <div class="card-subtitle">a voice companion for the Indian farmer</div>
 
-        <button id="webrtc-call-btn" class="btn">📞 Call Krishi Mitra</button>
-        <button id="webrtc-hangup-btn" class="btn">🛑 Hang Up</button>
+        <button id="callback-btn" class="btn">📲 मुझे कॉल करें / Call me back</button>
 
         <div class="status-container">
             <div class="status-hindi" id="webrtc-status-hindi">फ़ोन लाइन बंद है</div>
@@ -175,101 +167,32 @@
     </div>
 
     <script>
-        let webrtcDevice = null;
-        let activeCall = null;
-        const webrtcCallBtn = document.getElementById('webrtc-call-btn');
-        const webrtcHangupBtn = document.getElementById('webrtc-hangup-btn');
-        const webrtcStatusHindi = document.getElementById('webrtc-status-hindi');
-        const webrtcStatusSub = document.getElementById('webrtc-status-sub');
+        const statusHindi = document.getElementById('webrtc-status-hindi');
+        const statusSub   = document.getElementById('webrtc-status-sub');
+        const callbackBtn = document.getElementById('callback-btn');
 
-        function updateWebRTCStatus(hindi, english, isActive = false) {
-            webrtcStatusHindi.innerText = hindi;
-            webrtcStatusSub.innerText = english;
-            if (isActive) {
-                webrtcStatusHindi.style.color = 'var(--moss)';
-                webrtcCallBtn.style.display = 'none';
-                webrtcHangupBtn.style.display = 'block';
-            } else {
-                webrtcStatusHindi.style.color = 'var(--ink-soft)';
-                webrtcCallBtn.style.display = 'block';
-                webrtcHangupBtn.style.display = 'none';
-            }
+        function updateStatus(hindi, english) {
+            statusHindi.innerText = hindi;
+            statusSub.innerText = english;
         }
 
-        webrtcCallBtn.addEventListener('click', async () => {
+        callbackBtn.addEventListener('click', async () => {
             try {
-                updateWebRTCStatus("कनेक्शन स्थापित किया जा रहा है...", "Setting up WebRTC connection...");
-
-                const res = await fetch("/api/voice/token");
+                callbackBtn.disabled = true;
+                updateStatus("आपके नंबर पर कॉल भेजी जा रही है...", "Dialing your phone...");
+                const res = await fetch("/api/call/outbound", { method: "POST" });
                 const data = await res.json();
-
                 if (data.error) {
                     throw new Error(data.error);
                 }
-
-                webrtcDevice = new Twilio.Device(data.token, {
-                    codecPreferences: ['opus', 'pcmu'],
-                    fakeLocalDTMF: true,
-                    enableIceRestart: true
-                });
-
-                webrtcDevice.on("registered", async () => {
-                    console.log("Twilio WebRTC Device registered successfully");
-                    updateWebRTCStatus("कॉल शुरू हो रही है...", "Initiating call...");
-
-                    activeCall = await webrtcDevice.connect();
-
-                    activeCall.on("accept", () => {
-                        console.log("Call accepted by Krishi Mitra endpoint");
-                        updateWebRTCStatus("सक्रिय कॉल - माइक में बोलें", "Active Call - speak directly into your mic", true);
-                    });
-
-                    activeCall.on("disconnect", () => {
-                        console.log("WebRTC Call disconnected");
-                        updateWebRTCStatus("फ़ोन लाइन बंद है", "Phone line is idle");
-                        cleanupWebRTC();
-                    });
-
-                    activeCall.on("error", (error) => {
-                        console.error("WebRTC Call error:", error);
-                        updateWebRTCStatus("कॉल त्रुटि: " + error.message, "Call error: " + error.message);
-                        cleanupWebRTC();
-                    });
-                });
-
-                webrtcDevice.on("error", (error) => {
-                    console.error("Twilio WebRTC Device error:", error);
-                    updateWebRTCStatus("डिवाइस त्रुटि: " + error.message, "Device error: " + error.message);
-                    cleanupWebRTC();
-                });
-
-                await webrtcDevice.register();
-
+                updateStatus("कॉल भेज दी गई — अपना फ़ोन उठाएँ", "Call placed — please answer your phone");
             } catch (err) {
-                console.error("Failed to connect WebRTC call:", err);
-                updateWebRTCStatus("कनेक्शन विफल: " + err.message, "Connection failed: " + err.message);
-                cleanupWebRTC();
+                console.error("Callback failed:", err);
+                updateStatus("कॉलबैक विफल: " + err.message, "Callback failed: " + err.message);
+            } finally {
+                callbackBtn.disabled = false;
             }
         });
-
-        webrtcHangupBtn.addEventListener('click', () => {
-            if (activeCall) {
-                activeCall.disconnect();
-            }
-            cleanupWebRTC();
-        });
-
-        function cleanupWebRTC() {
-            if (activeCall) {
-                activeCall = null;
-            }
-            if (webrtcDevice) {
-                webrtcDevice.destroy();
-                webrtcDevice = null;
-            }
-            webrtcCallBtn.style.display = 'block';
-            webrtcHangupBtn.style.display = 'none';
-        }
     </script>
 </body>
 </html>

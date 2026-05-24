@@ -911,13 +911,67 @@ def voice_incoming(request: Request):
     """Twilio voice incoming webhook returning TwiML response with Media Stream connect."""
     host = request.headers.get("host")
     wss_url = f"wss://{host}/voice/stream"
-    
+
     response = VoiceResponse()
     response.say("कृषि मित्र में आपका स्वागत है", voice="Polly.Aditi", language="hi-IN")
     connect = response.connect()
     connect.stream(url=wss_url)
-    
+
     return Response(content=str(response), media_type="application/xml")
+
+@app.post("/api/call/outbound")
+def call_outbound(request: Request):
+    """Dial the user's hardcoded phone number from the Twilio number and connect them to the Kisan Sahayak voice agent."""
+    from twilio.rest import Client as TwilioRestClient
+
+    account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+    auth_token  = os.getenv("TWILIO_AUTH_TOKEN")
+    from_number = os.getenv("TWILIO_PHONE_NUMBER")
+    to_number   = "+918168323826"
+
+    if not (account_sid and auth_token and from_number):
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Missing TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, or TWILIO_PHONE_NUMBER"},
+        )
+
+    public_host = os.getenv("PUBLIC_HOST") or request.headers.get("host")
+    twiml_url = f"https://{public_host}/voice/incoming"
+
+    try:
+        client = TwilioRestClient(account_sid, auth_token)
+        call = client.calls.create(
+            to=to_number,
+            from_=from_number,
+            url=twiml_url,
+            machine_detection="Enable",
+            machine_detection_timeout=10,
+        )
+        print(f"📲 Outbound call initiated (AMD on): SID={call.sid}  →  {to_number}  (TwiML: {twiml_url})")
+        return {"ok": True, "call_sid": call.sid, "to": to_number, "from": from_number}
+    except Exception as e:
+        print(f"❌ Outbound call failed: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.get("/api/call/{call_sid}/status")
+def call_status(call_sid: str):
+    """Return Twilio call status including answered_by (AMD result) for diagnostics."""
+    from twilio.rest import Client as TwilioRestClient
+    account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+    auth_token  = os.getenv("TWILIO_AUTH_TOKEN")
+    if not (account_sid and auth_token):
+        return JSONResponse(status_code=500, content={"error": "Missing Twilio creds"})
+    try:
+        call = TwilioRestClient(account_sid, auth_token).calls(call_sid).fetch()
+        return {
+            "sid": call.sid,
+            "status": call.status,
+            "duration": call.duration,
+            "answered_by": call.answered_by,
+            "forwarded_from": call.forwarded_from,
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 call_sessions = {}
 async_dg = AsyncDeepgramClient(api_key=DEEPGRAM_API_KEY)
