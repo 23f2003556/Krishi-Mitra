@@ -1,8 +1,0 @@
-fastapi
-uvicorn[standard]
-python-multipart
-deepgram-sdk
-google-genai
-requests
-twilio
-audioop-lts
