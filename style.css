@@ -1,0 +1,116 @@
+/* style.css */
+/* Premium glassmorphism dark theme */
+:root {
+  --bg-color: #0a0a0a;
+  --glass-bg: rgba(255, 255, 255, 0.07);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --primary: hsl(210, 60%, 55%);
+  --accent: hsl(260, 55%, 65%);
+  --text-light: #e0e0e0;
+  --text-muted: #a0a0a0;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', sans-serif;
+  background: linear-gradient(135deg, #111 0%, #222 100%);
+  color: var(--text-light);
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app {
+  width: 90%;
+  max-width: 500px;
+  height: 80vh;
+  background: var(--glass-bg);
+  border-radius: 20px;
+  backdrop-filter: blur(12px) saturate(150%);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.chat-box {
+  flex: 1;
+  padding: 1rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.message {
+  max-width: 85%;
+  padding: 0.8rem 1rem;
+  border-radius: 12px;
+  line-height: 1.4;
+  word-wrap: break-word;
+}
+.message.user {
+  align-self: flex-end;
+  background: var(--primary);
+  color: #fff;
+}
+.message.bot {
+  align-self: flex-start;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  color: var(--text-light);
+}
+
+.input-area {
+  display: flex;
+  padding: 0.6rem;
+  background: rgba(255,255,255,0.04);
+  border-top: 1px solid var(--glass-border);
+}
+#userInput {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text-light);
+  font-size: 1rem;
+  padding: 0.5rem;
+  outline: none;
+}
+#sendBtn {
+  background: var(--accent);
+  border: none;
+  color: #fff;
+  padding: 0.5rem 1rem;
+  margin-left: 0.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+#sendBtn:hover {
+  transform: scale(1.05);
+}
+
+.spinner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(4px);
+  visibility: hidden;
+}
+.spinner::after {
+  content: '';
+  width: 50px;
+  height: 50px;
+  border: 5px solid var(--primary);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }

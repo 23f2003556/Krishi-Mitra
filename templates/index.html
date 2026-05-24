@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>कृषि मित्र — Krishi Mitra</title>
+    <!-- Twilio Voice JS SDK (served locally from node_modules) -->
+    <script src="/vendor/twilio/twilio.min.js"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Source+Serif+4:ital,opsz,wght@0,8..60,200..900;1,8..60,200..900&family=Tiro+Devanagari+Hindi:ital@0;1&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg:         #F4EDDC;
+            --paper:      #FCF6E8;
+            --ink:        #1F1A14;
+            --ink-soft:   #594D3E;
+            --ink-faded:  #8A7D6B;
+            --accent:     #C7782B;
+            --moss:       #5C7158;
+            --rust:       #A8553C;
+            --border:     rgba(31,26,20,0.12);
+
+            --serif-hindi:   "Tiro Devanagari Hindi", serif;
+            --serif-display: "Fraunces", serif;
+            --serif-body:    "Source Serif 4", serif;
+            --mono:          "JetBrains Mono", monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg);
+            color: var(--ink);
+            font-family: var(--serif-body);
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 24px;
+        }
+
+        .console-card {
+            background-color: var(--paper);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 48px 32px 40px 32px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            box-shadow: 0 6px 20px rgba(31,26,20,0.03);
+            width: 100%;
+            max-width: 460px;
+            border-color: rgba(199, 120, 43, 0.3);
+        }
+
+        .ornament {
+            position: absolute;
+            font-size: 22px;
+            opacity: 0.5;
+            user-select: none;
+            pointer-events: none;
+        }
+        .ornament-tl { top: 12px; left: 16px; }
+        .ornament-tr { top: 12px; right: 16px; }
+
+        .card-header {
+            font-family: var(--mono);
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--accent);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+
+        .card-title {
+            font-family: var(--serif-hindi);
+            font-size: 36px;
+            color: var(--ink);
+            margin-bottom: 6px;
+            text-align: center;
+        }
+
+        .card-subtitle {
+            font-family: var(--serif-display);
+            font-style: italic;
+            font-size: 15px;
+            color: var(--ink-soft);
+            margin-bottom: 28px;
+            text-align: center;
+        }
+
+        .btn {
+            width: 100%;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px 20px;
+            text-align: center;
+            font-family: var(--serif-hindi);
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--ink-soft);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            outline: none;
+        }
+
+        #webrtc-call-btn {
+            border-color: var(--accent);
+            background: rgba(199,120,43,0.06);
+            color: var(--ink);
+        }
+        #webrtc-call-btn:hover {
+            background: rgba(199,120,43,0.12);
+            transform: translateY(-1px);
+        }
+
+        #webrtc-hangup-btn {
+            border-color: var(--rust);
+            color: var(--rust);
+            display: none;
+        }
+        #webrtc-hangup-btn:hover {
+            background: rgba(168,85,60,0.08);
+        }
+
+        .status-container {
+            text-align: center;
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-height: 44px;
+        }
+
+        .status-hindi {
+            font-family: var(--serif-hindi);
+            font-size: 16px;
+            color: var(--ink-soft);
+        }
+
+        .status-sub {
+            font-family: var(--serif-display);
+            font-style: italic;
+            font-size: 13px;
+            color: var(--ink-faded);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="console-card phone-card">
+        <span class="ornament ornament-tl">📞</span>
+        <span class="ornament ornament-tr">📞</span>
+
+        <div class="card-header">Direct WebRTC Phone Line · मुफ्त फ़ोन कॉल</div>
+        <h1 class="card-title">कृषि मित्र</h1>
+        <div class="card-subtitle">a voice companion for the Indian farmer</div>
+
+        <button id="webrtc-call-btn" class="btn">📞 Call Krishi Mitra</button>
+        <button id="webrtc-hangup-btn" class="btn">🛑 Hang Up</button>
+
+        <div class="status-container">
+            <div class="status-hindi" id="webrtc-status-hindi">फ़ोन लाइन बंद है</div>
+            <div class="status-sub" id="webrtc-status-sub">Phone line is idle</div>
+        </div>
+    </div>
+
+    <script>
+        let webrtcDevice = null;
+        let activeCall = null;
+        const webrtcCallBtn = document.getElementById('webrtc-call-btn');
+        const webrtcHangupBtn = document.getElementById('webrtc-hangup-btn');
+        const webrtcStatusHindi = document.getElementById('webrtc-status-hindi');
+        const webrtcStatusSub = document.getElementById('webrtc-status-sub');
+
+        function updateWebRTCStatus(hindi, english, isActive = false) {
+            webrtcStatusHindi.innerText = hindi;
+            webrtcStatusSub.innerText = english;
+            if (isActive) {
+                webrtcStatusHindi.style.color = 'var(--moss)';
+                webrtcCallBtn.style.display = 'none';
+                webrtcHangupBtn.style.display = 'block';
+            } else {
+                webrtcStatusHindi.style.color = 'var(--ink-soft)';
+                webrtcCallBtn.style.display = 'block';
+                webrtcHangupBtn.style.display = 'none';
+            }
+        }
+
+        webrtcCallBtn.addEventListener('click', async () => {
+            try {
+                updateWebRTCStatus("कनेक्शन स्थापित किया जा रहा है...", "Setting up WebRTC connection...");
+
+                const res = await fetch("/api/voice/token");
+                const data = await res.json();
+
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                webrtcDevice = new Twilio.Device(data.token, {
+                    codecPreferences: ['opus', 'pcmu'],
+                    fakeLocalDTMF: true,
+                    enableIceRestart: true
+                });
+
+                webrtcDevice.on("registered", async () => {
+                    console.log("Twilio WebRTC Device registered successfully");
+                    updateWebRTCStatus("कॉल शुरू हो रही है...", "Initiating call...");
+
+                    activeCall = await webrtcDevice.connect();
+
+                    activeCall.on("accept", () => {
+                        console.log("Call accepted by Krishi Mitra endpoint");
+                        updateWebRTCStatus("सक्रिय कॉल - माइक में बोलें", "Active Call - speak directly into your mic", true);
+                    });
+
+                    activeCall.on("disconnect", () => {
+                        console.log("WebRTC Call disconnected");
+                        updateWebRTCStatus("फ़ोन लाइन बंद है", "Phone line is idle");
+                        cleanupWebRTC();
+                    });
+
+                    activeCall.on("error", (error) => {
+                        console.error("WebRTC Call error:", error);
+                        updateWebRTCStatus("कॉल त्रुटि: " + error.message, "Call error: " + error.message);
+                        cleanupWebRTC();
+                    });
+                });
+
+                webrtcDevice.on("error", (error) => {
+                    console.error("Twilio WebRTC Device error:", error);
+                    updateWebRTCStatus("डिवाइस त्रुटि: " + error.message, "Device error: " + error.message);
+                    cleanupWebRTC();
+                });
+
+                await webrtcDevice.register();
+
+            } catch (err) {
+                console.error("Failed to connect WebRTC call:", err);
+                updateWebRTCStatus("कनेक्शन विफल: " + err.message, "Connection failed: " + err.message);
+                cleanupWebRTC();
+            }
+        });
+
+        webrtcHangupBtn.addEventListener('click', () => {
+            if (activeCall) {
+                activeCall.disconnect();
+            }
+            cleanupWebRTC();
+        });
+
+        function cleanupWebRTC() {
+            if (activeCall) {
+                activeCall = null;
+            }
+            if (webrtcDevice) {
+                webrtcDevice.destroy();
+                webrtcDevice = null;
+            }
+            webrtcCallBtn.style.display = 'block';
+            webrtcHangupBtn.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
