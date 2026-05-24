@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+python-multipart
+python-dotenv
+deepgram-sdk
+google-genai
+requests
+twilio
+audioop-lts
